@@ -148,23 +148,23 @@ namespace
         // standard filler bytes (2F 2F) that the parser knows to skip,
         // then re-run DV parsing and field extraction from scratch.
 
-        debug("(tauronkpl) processContent called, header_size=%d frame_size=%d\n",
+        warning("(tauronkpl) processContent called, header_size=%d frame_size=%d\n",
               t->header_size, (int)t->frame.size());
 
         int hs = t->header_size;
         if (hs + 1 >= (int)t->frame.size()) {
-            debug("(tauronkpl) frame too small, returning\n");
+            warning("(tauronkpl) frame too small, returning\n");
             return;
         }
 
         uchar b0 = t->frame[hs];
         uchar b1 = t->frame[hs + 1];
 
-        debug("(tauronkpl) bytes at header_size: %02x %02x\n", b0, b1);
+        warning("(tauronkpl) bytes at header_size: %02x %02x\n", b0, b1);
 
         // Only patch if we see the expected prefix
         if (b0 != 0x60 || b1 != 0x9B) {
-            debug("(tauronkpl) prefix mismatch, expected 60 9B, returning\n");
+            warning("(tauronkpl) prefix mismatch, expected 60 9B, returning\n");
             return;
         }
 
@@ -179,15 +179,15 @@ namespace
         vector<uchar>::iterator pos = t->frame.begin() + hs;
         int remaining = (int)t->frame.size() - (int)t->suffix_size - hs;
 
-        debug("(tauronkpl) re-parsing %d bytes from offset %d\n", remaining, hs);
+        warning("(tauronkpl) re-parsing %d bytes from offset %d\n", remaining, hs);
 
         parseDV(t, t->frame, pos, remaining, &t->dv_entries);
 
-        debug("(tauronkpl) parseDV done, %d dv_entries found\n", (int)t->dv_entries.size());
+        warning("(tauronkpl) parseDV done, %d dv_entries found\n", (int)t->dv_entries.size());
 
         // Re-run field extractors on the corrected DV entries
         processFieldExtractors(t);
 
-        debug("(tauronkpl) processFieldExtractors done\n");
+        warning("(tauronkpl) processFieldExtractors done\n");
     }
 }
