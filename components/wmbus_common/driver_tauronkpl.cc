@@ -6,7 +6,7 @@
  These meters use a data format similar to amiplus, but the decrypted
  payload starts with a 2-byte prefix (60 9B) before the standard DIF/VIF
  records. This prefix causes the standard DV parser to desync, so we
- re-parse the payload with a 2-byte offset in processContent().
+ patch the frame to replace the prefix with filler bytes and re-parse.
 */
 
 #include"meters_common_implementation.h"
@@ -23,7 +23,6 @@ namespace
     {
         Driver(MeterInfo &mi, DriverInfo &di);
 
-    private:
         void processContent(Telegram *t);
     };
 
@@ -145,35 +144,32 @@ namespace
         // the standard DIF/VIF data records. This causes the DV parser
         // to desync when called during normal TPL parsing.
         //
-        // Fix: clear the broken DV entries, re-parse the payload with
-        // a 2-byte offset to skip the prefix, then re-run field extractors.
+        // Fix: patch the frame in-place, replacing the 2-byte prefix with
+        // standard filler bytes (2F 2F) that the parser knows to skip,
+        // then re-run DV parsing and field extraction from scratch.
 
-        int skip_bytes = 2;
-        int data_start = t->header_size + skip_bytes;
-        int data_end = t->frame.size() - t->suffix_size;
-        int remaining = data_end - data_start;
+        int hs = t->header_size;
+        if (hs + 1 >= (int)t->frame.size()) return;
 
-        if (remaining <= 0) return;
+        uchar b0 = t->frame[hs];
+        uchar b1 = t->frame[hs + 1];
 
-        // Verify the prefix is what we expect (60 9B)
-        if (t->header_size + 1 < (int)t->frame.size())
-        {
-            uchar b0 = t->frame[t->header_size];
-            uchar b1 = t->frame[t->header_size + 1];
-            if (b0 != 0x60 || b1 != 0x9B)
-            {
-                // Prefix doesn't match - maybe a different firmware version
-                // that doesn't have the prefix. Don't re-parse.
-                return;
-            }
-        }
+        // Only patch if we see the expected prefix
+        if (b0 != 0x60 || b1 != 0x9B) return;
 
+        // Replace the problematic prefix with filler bytes
+        t->frame[hs] = 0x2F;
+        t->frame[hs + 1] = 0x2F;
+
+        // Clear the broken DV entries from the first parse attempt
         t->dv_entries.clear();
 
-        vector<uchar>::iterator pos = t->frame.begin() + data_start;
+        // Re-parse the payload from the beginning (now with 2F 2F filler)
+        vector<uchar>::iterator pos = t->frame.begin() + hs;
+        int remaining = (int)t->frame.size() - (int)t->suffix_size - hs;
         parseDV(t, t->frame, pos, remaining, &t->dv_entries);
 
-        // Re-run field extractors on the corrected DV entries.
+        // Re-run field extractors on the corrected DV entries
         processFieldExtractors(t);
     }
 }
