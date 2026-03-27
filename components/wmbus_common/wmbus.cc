@@ -1539,6 +1539,15 @@ bool Telegram::potentiallyDecrypt(vector<uchar>::iterator &pos)
         }
         // Now the frame from pos and onwards has been decrypted.
 
+        // KPL (Tauron) meters use 60 9B prefix instead of standard 2F 2F
+        // check bytes. Patch them so the verification passes and parseDV
+        // receives clean filler bytes it knows how to skip.
+        if ((dll_mfct & 0x7fff) == 0x2E0C && *(pos+0) == 0x60 && *(pos+1) == 0x9B)
+        {
+            *(pos+0) = 0x2F;
+            *(pos+1) = 0x2F;
+        }
+
         CHECK(2);
         uchar a = *(pos+0);
         uchar b = *(pos+1);
